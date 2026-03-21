@@ -1,7 +1,7 @@
 import * as Camera from "expo-camera";
 import { takePhoto } from "./cameraService";
 import { addPhotoEvidence } from "./evidenceService";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db, storage } from "./firebase";
 import { ref, push, set } from "firebase/database";
@@ -63,7 +63,7 @@ export const uploadPhotoToDB = async (uri) => {
 
     // Convert to base64
     const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64
+      encoding: 'base64'
     });
 
     const dbRef = push(ref(db, `sessions/${sessionId}/evidence/photos`));

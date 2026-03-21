@@ -1,7 +1,7 @@
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { addAudioEvidence } from "./evidenceService";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { db, storage } from "./firebase";
 import { ref, push, set } from "firebase/database";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -134,28 +134,34 @@ export const stopAudioEvidence = async () => {
 /* ============================================================
   Upload audio to Firebase
 ============================================================ */
+
 export const uploadAudioToDB = async (uri) => {
   try {
     const sessionId = await AsyncStorage.getItem("SOS_SESSION_ID");
-    if (!sessionId) return console.log("No session ID");
+    if (!sessionId) return;
 
-    // Convert audio to base64
+    // Convert file → base64
     const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64
+      encoding: "base64",
     });
+
+    // Best browser-compatible MIME for Expo recordings
+    const mimeType = "audio/mp4"; // works for AAC inside M4A
 
     const dbRef = push(ref(db, `sessions/${sessionId}/evidence/audio`));
 
     await set(dbRef, {
       data: base64,
       type: "audio",
+      mime: mimeType,
       time: Date.now()
     });
 
-    console.log("Audio saved to DB");
+    console.log("[AudioEvidence] Stored base64 audio in DB");
 
   } catch (err) {
-    console.log("Audio upload error:", err);
+    console.log("[AudioEvidence] Upload error:", err);
   }
 };
+
 
