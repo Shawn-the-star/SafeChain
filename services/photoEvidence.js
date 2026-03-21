@@ -1,7 +1,7 @@
 import * as Camera from "expo-camera";
 import { takePhoto } from "./cameraService";
 import { addPhotoEvidence } from "./evidenceService";
-
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db, storage } from "./firebase";
 import { ref, push, set } from "firebase/database";
@@ -56,35 +56,28 @@ export const stopPhotoEvidence = () => {
 /* ============================================================
    NEW: Upload Photo to Firebase
 ============================================================ */
-const uploadPhotoToDB = async (uri) => {
+export const uploadPhotoToDB = async (uri) => {
   try {
     const sessionId = await AsyncStorage.getItem("SOS_SESSION_ID");
-    if (!sessionId) {
-      console.log("[PhotoEvidence] No session ID found, cannot upload");
-      return;
-    }
+    if (!sessionId) return console.log("No session ID");
 
-    // 1. Upload to Firebase Storage
-    const fileRef = storageRef(storage, `sessions/${sessionId}/photos/${Date.now()}.jpg`);
+    // Convert to base64
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64
+    });
 
-    const response = await fetch(uri);
-    const blob = await response.blob();
-
-    await uploadBytes(fileRef, blob);
-    const downloadURL = await getDownloadURL(fileRef);
-
-    // 2. Create DB entry
     const dbRef = push(ref(db, `sessions/${sessionId}/evidence/photos`));
 
     await set(dbRef, {
-      url: downloadURL,
+      data: base64,
       type: "photo",
       time: Date.now()
     });
 
-    console.log("[PhotoEvidence] Uploaded to DB:", downloadURL);
+    console.log("Photo saved to DB");
 
   } catch (err) {
-    console.log("[PhotoEvidence] Upload error:", err);
+    console.log("Photo upload error:", err);
   }
 };
+

@@ -1,7 +1,7 @@
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { addAudioEvidence } from "./evidenceService";
-
+import * as FileSystem from "expo-file-system";
 import { db, storage } from "./firebase";
 import { ref, push, set } from "firebase/database";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -134,36 +134,28 @@ export const stopAudioEvidence = async () => {
 /* ============================================================
   Upload audio to Firebase
 ============================================================ */
-const uploadAudioToDB = async (uri) => {
+export const uploadAudioToDB = async (uri) => {
   try {
     const sessionId = await AsyncStorage.getItem("SOS_SESSION_ID");
-    if (!sessionId) {
-      console.log("[AudioEvidence] No session ID found, cannot upload");
-      return;
-    }
+    if (!sessionId) return console.log("No session ID");
 
-    // 1. Upload to Firebase Storage
-    const fileRef = storageRef(storage, `sessions/${sessionId}/audio/${Date.now()}.m4a`);
+    // Convert audio to base64
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64
+    });
 
-    const response = await fetch(uri);
-    const blob = await response.blob();
-
-    await uploadBytes(fileRef, blob);
-
-    const downloadURL = await getDownloadURL(fileRef);
-
-    // 2. Write database entry
     const dbRef = push(ref(db, `sessions/${sessionId}/evidence/audio`));
 
     await set(dbRef, {
-      url: downloadURL,
+      data: base64,
       type: "audio",
       time: Date.now()
     });
 
-    console.log("[AudioEvidence] Uploaded to DB:", downloadURL);
+    console.log("Audio saved to DB");
 
   } catch (err) {
-    console.log("[AudioEvidence] Upload error:", err);
+    console.log("Audio upload error:", err);
   }
 };
+
