@@ -21,7 +21,7 @@ export const sendSOSAlert = async () => {
 
     const sessionId = await AsyncStorage.getItem("SOS_SESSION_ID");
 
-    const trackingLink = `https://sosdashboard.vercel.app/track/${sessionId}`;
+    const trackingLink = `https://sos-dashboard-two.vercel.app/track/${sessionId}`;
 
     const message =
       `🚨 EMERGENCY SOS 🚨
