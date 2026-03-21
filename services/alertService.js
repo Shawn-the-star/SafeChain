@@ -23,6 +23,7 @@ export const sendSOSAlert = async () => {
 
     const trackingLink = `https://sos-dashboard-two.vercel.app/track/${sessionId}`;
 
+    const dashboardLink = `https://sos-dashboard-two.vercel.app/dashboard/${sessionId}`;
     const message =
       `🚨 EMERGENCY SOS 🚨
 I might be in danger.
@@ -31,6 +32,9 @@ I might be in danger.
 ${trackingLink}
 
 ⏱️ ${new Date().toLocaleString()}
+
+📸 I have also captured audio and photos.
+${dashboardLink}
 `;
 
 
