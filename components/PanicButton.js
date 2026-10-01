@@ -1,238 +1,521 @@
-import React, { useRef, useEffect } from "react";
-import { Pressable, Text, StyleSheet, View, Animated } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Animated,
+} from "react-native";
 
-export default function PanicButton({ onActivate, onStop, isActive }) {
+const HOLD_DURATION = 3000;
 
-  const timer = useRef(null);
-  const activated = useRef(false);
+export default function PanicButton({
+  onActivate,
+  onStop,
+  isActive,
+}) {
+  const [isHolding, setIsHolding] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const scale = useRef(new Animated.Value(1)).current;
-  const progress = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // 🔥 NEW: pulse animation for active state
-  const pulse = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef(null);
+  const activatedRef = useRef(false);
 
+  // Active SOS pulse
   useEffect(() => {
-    if (isActive) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, {
-            toValue: 1.1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulse, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    } else {
-      pulse.setValue(1);
+    if (!isActive) {
+      pulseAnim.setValue(1);
+      return;
     }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.035,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulse.start();
+
+    return () => pulse.stop();
   }, [isActive]);
 
-  const handlePressIn = () => {
+  const startHold = () => {
+    if (isActive || isHolding) return;
 
-    activated.current = false;
+    setIsHolding(true);
+    setProgress(0);
+    activatedRef.current = false;
 
-    Animated.spring(scale, {
-      toValue: 0.92,
-      useNativeDriver: true
-    }).start();
+    progressAnim.setValue(0);
 
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 3000,
-      useNativeDriver: false
-    }).start();
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0.96,
+        duration: 150,
+        useNativeDriver: true,
+      }),
 
-    timer.current = setTimeout(() => {
-      activated.current = true;
-      onActivate();
-      progress.setValue(0);
-    }, 3000);
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: HOLD_DURATION,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    const startTime = Date.now();
+
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const currentProgress = Math.min(elapsed / HOLD_DURATION, 1);
+
+      setProgress(currentProgress);
+
+      if (currentProgress >= 1) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+
+        activatedRef.current = true;
+        setIsHolding(false);
+
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 80,
+          useNativeDriver: true,
+        }).start();
+
+        onActivate?.();
+      }
+    }, 50);
   };
 
-  const handlePressOut = () => {
+  const cancelHold = () => {
+    if (!isHolding || activatedRef.current) return;
 
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true
-    }).start();
-
-    if (!activated.current) {
-      clearTimeout(timer.current);
-      progress.setValue(0);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
+
+    setIsHolding(false);
+    setProgress(0);
+
+    progressAnim.stopAnimation();
+    progressAnim.setValue(0);
+
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
   };
 
-  const widthInterpolate = progress.interpolate({
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  if (isActive) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.activeHeader}>
+          <View style={styles.activeIndicator} />
+
+          <View>
+            <Text style={styles.activeTitle}>SOS ACTIVE</Text>
+            <Text style={styles.activeSubtitle}>
+              Emergency mode is currently running
+            </Text>
+          </View>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.activeCard,
+            {
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        >
+          <View style={styles.activeIconCircle}>
+            <Text style={styles.activeIcon}>!</Text>
+          </View>
+
+          <Text style={styles.activeMainText}>
+            Help is being coordinated
+          </Text>
+
+          <Text style={styles.activeDescription}>
+            Your emergency response, location tracking and recording
+            services are active.
+          </Text>
+
+          <View style={styles.activeStatusRow}>
+            <View style={styles.statusItem}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusLabel}>Tracking</Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusLabel}>Recording</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        <Pressable
+          onPress={onStop}
+          style={({ pressed }) => [
+            styles.stopButton,
+            pressed && styles.stopButtonPressed,
+          ]}
+        >
+          <Text style={styles.stopButtonText}>STOP SOS</Text>
+        </Pressable>
+
+        <Text style={styles.stopHint}>
+          Enter your passcode to stop the emergency
+        </Text>
+      </View>
+    );
+  }
+
+  const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0%", "100%"]
+    outputRange: ["0%", "100%"],
   });
 
   return (
-
     <View style={styles.container}>
+      <View style={styles.heading}>
+        <Text style={styles.headingTitle}>Emergency SOS</Text>
 
-      {!isActive ? (
+        <Text style={styles.headingSubtitle}>
+          Hold the button for 3 seconds to activate
+        </Text>
+      </View>
 
-        <>
-          <Text style={styles.title}>Emergency SOS</Text>
+      <View style={styles.buttonArea}>
+        <View style={styles.outerRing}>
+          <Animated.View
+            style={[
+              styles.progressRing,
+              {
+                transform: [
+                  {
+                    scale: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.06],
+                    }),
+                  },
+                ],
+                opacity: progressAnim.interpolate({
+                  inputRange: [0, 0.05, 1],
+                  outputRange: [0.25, 0.6, 1],
+                }),
+              },
+            ]}
+          />
 
-          <Text style={styles.subtitle}>
-            Hold for 3 seconds to activate
-          </Text>
-
-          <Pressable
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
+          <Animated.View
+            style={[
+              styles.sosButton,
+              {
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
           >
-            <Animated.View
-              style={[
-                styles.buttonWrapper,
-                { transform: [{ scale }] }
-              ]}
-            >
-
-              {/* Glow Ring */}
-              <View style={styles.outerRing} />
-
-              {/* Main Button */}
-              <View style={styles.button}>
-                <Text style={styles.text}>SOS</Text>
-
-                <Animated.View
-                  style={[
-                    styles.progress,
-                    { width: widthInterpolate }
-                  ]}
-                />
-              </View>
-
-            </Animated.View>
-          </Pressable>
-        </>
-
-      ) : (
-
-        <>
-          <Text style={styles.activeTitle}>🚨 SOS ACTIVE</Text>
-
-          <Text style={styles.subtitle}>
-            Recording & tracking in progress
-          </Text>
-
-          <Animated.View style={{ transform: [{ scale: pulse }] }}>
             <Pressable
-              style={({ pressed }) => [
-                styles.stopButton,
-                { transform: [{ scale: pressed ? 0.96 : 1 }] }
-              ]}
-              onPress={onStop}
+              onPressIn={startHold}
+              onPressOut={cancelHold}
+              style={styles.pressArea}
             >
-              <Text style={styles.stopText}>STOP SOS</Text>
+              <Text style={styles.sosLabel}>
+                {isHolding ? "HOLD..." : "SOS"}
+              </Text>
+
+              <Text style={styles.sosSubLabel}>
+                {isHolding
+                  ? `${Math.ceil((1 - progress) * 3)}s`
+                  : "EMERGENCY"}
+              </Text>
             </Pressable>
           </Animated.View>
-        </>
+        </View>
+      </View>
 
-      )}
+      <View style={styles.progressContainer}>
+        <View style={styles.progressTrack}>
+          <Animated.View
+            style={[
+              styles.progressFill,
+              {
+                width: progressWidth,
+              },
+            ]}
+          />
+        </View>
 
+        <Text style={styles.progressText}>
+          {isHolding
+            ? "Keep holding to activate SOS"
+            : "Hold for 3 seconds"}
+        </Text>
+      </View>
     </View>
-
   );
-
 }
 
 const styles = StyleSheet.create({
-
   container: {
+    width: "100%",
     alignItems: "center",
-    marginTop: 30
   },
 
-  title: {
-    fontSize: 26,
+  heading: {
+    alignItems: "center",
+    marginBottom: 22,
+  },
+
+  headingTitle: {
+    color: "#ffffff",
+    fontSize: 20,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 6,
-    letterSpacing: 0.5
   },
 
-  activeTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#ff3b30",
-    marginBottom: 10,
-    letterSpacing: 1
+  headingSubtitle: {
+    color: "#777",
+    fontSize: 12,
+    marginTop: 5,
   },
 
-  subtitle: {
-    color: "#888",
-    marginBottom: 30,
-    fontSize: 13
-  },
-
-  buttonWrapper: {
+  buttonArea: {
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center"
+    marginBottom: 20,
   },
 
   outerRing: {
-    position: "absolute",
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: "rgba(255,59,48,0.08)",
-  },
-
-  button: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "#ff3b30",
-    justifyContent: "center",
+    width: 216,
+    height: 216,
+    borderRadius: 108,
+    borderWidth: 1,
+    borderColor: "#292929",
     alignItems: "center",
-    shadowColor: "#ff3b30",
-    shadowOpacity: 0.6,
-    shadowRadius: 25,
-    elevation: 15,
-    overflow: "hidden"
+    justifyContent: "center",
   },
 
-  text: {
-    color: "#fff",
-    fontSize: 34,
-    fontWeight: "900",
-    letterSpacing: 3
-  },
-
-  progress: {
+  progressRing: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
+    width: 202,
+    height: 202,
+    borderRadius: 101,
+    borderWidth: 5,
+    borderColor: "#ff3b30",
+  },
+
+  sosButton: {
+    width: 176,
+    height: 176,
+    borderRadius: 88,
+    backgroundColor: "#d92f29",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#ff3b30",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  pressArea: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 88,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sosLabel: {
+    color: "#ffffff",
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+
+  sosSubLabel: {
+    color: "#ffd9d7",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    marginTop: 4,
+  },
+
+  progressContainer: {
+    width: "82%",
+    alignItems: "center",
+  },
+
+  progressTrack: {
+    width: "100%",
+    height: 4,
+    backgroundColor: "#252525",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#ff3b30",
+    borderRadius: 2,
+  },
+
+  progressText: {
+    color: "#777",
+    fontSize: 11,
+    marginTop: 9,
+  },
+
+  activeHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+
+  activeIndicator: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "#ff3b30",
+    marginRight: 10,
+  },
+
+  activeTitle: {
+    color: "#ff5148",
+    fontSize: 19,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+
+  activeSubtitle: {
+    color: "#777",
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  activeCard: {
+    width: "100%",
+    backgroundColor: "#171313",
+    borderWidth: 1,
+    borderColor: "#40201e",
+    borderRadius: 18,
+    padding: 20,
+    alignItems: "center",
+  },
+
+  activeIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ff3b30",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 13,
+  },
+
+  activeIcon: {
+    color: "#ffffff",
+    fontSize: 25,
+    fontWeight: "800",
+  },
+
+  activeMainText: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  activeDescription: {
+    color: "#999",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 7,
+    maxWidth: 290,
+  },
+
+  activeStatusRow: {
+    flexDirection: "row",
+    marginTop: 18,
+    gap: 20,
+  },
+
+  statusItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  statusDot: {
+    width: 6,
     height: 6,
-    backgroundColor: "#fff",
-    opacity: 0.9
+    borderRadius: 3,
+    backgroundColor: "#4ade80",
+    marginRight: 6,
+  },
+
+  statusLabel: {
+    color: "#aaa",
+    fontSize: 11,
+    fontWeight: "600",
   },
 
   stopButton: {
-    marginTop: 30,
-    backgroundColor: "#111",
-    borderWidth: 2,
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
     borderColor: "#ff3b30",
-    paddingVertical: 18,
-    paddingHorizontal: 45,
-    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
   },
 
-  stopText: {
-    color: "#ff3b30",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 1
-  }
+  stopButtonPressed: {
+    backgroundColor: "#241414",
+  },
 
+  stopButtonText: {
+    color: "#ff5148",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+
+  stopHint: {
+    color: "#666",
+    fontSize: 10,
+    marginTop: 8,
+  },
 });

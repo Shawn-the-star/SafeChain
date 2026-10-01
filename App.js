@@ -1,13 +1,24 @@
+
 import React, { useEffect, useRef } from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  NavigationContainer
+} from "@react-navigation/native";
+
+import {
+  createBottomTabNavigator
+} from "@react-navigation/bottom-tabs";
+
+import {
+  createNativeStackNavigator
+} from "@react-navigation/native-stack";
 
 import HomeScreen from "./screens/HomeScreen";
 import ContactsScreen from "./screens/ContactsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import EvidenceScreen from "./screens/EvidenceScreen";
 import SetPasscodeScreen from "./screens/SetPasscodeScreen";
+import CalculatorScreen from "./screens/CalculatorScreen";
 
 import { requestAllPermissions } from "./services/permissionService";
 import { setCameraRef } from "./services/cameraService";
@@ -15,23 +26,43 @@ import { setCameraRef } from "./services/cameraService";
 import { CameraView } from "expo-camera";
 import { MaterialIcons } from "@expo/vector-icons";
 
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 
-// 🔹 Bottom Tabs
+// ==========================================
+// BOTTOM TABS
+// ==========================================
+
 function TabNavigator() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+
         tabBarStyle: {
           backgroundColor: "#111",
           borderTopColor: "#222",
-          height: 65,
+
+          // Normal tab bar + Android system navigation inset
+          height: 65 + insets.bottom,
+
+          // Push the icons/text above the system buttons
+          paddingBottom: insets.bottom,
+
+          paddingTop: 6,
         },
+
         tabBarActiveTintColor: "#ff3b30",
         tabBarInactiveTintColor: "#777",
+
+        tabBarLabelStyle: {
+          fontSize: 11,
+          marginBottom: 2,
+        },
       }}
     >
       <Tab.Screen
@@ -39,7 +70,11 @@ function TabNavigator() {
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="home" size={26} color={color} />
+            <MaterialIcons
+              name="home"
+              size={25}
+              color={color}
+            />
           ),
         }}
       />
@@ -49,7 +84,11 @@ function TabNavigator() {
         component={ContactsScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="contacts" size={26} color={color} />
+            <MaterialIcons
+              name="contacts"
+              size={25}
+              color={color}
+            />
           ),
         }}
       />
@@ -59,7 +98,11 @@ function TabNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="settings" size={26} color={color} />
+            <MaterialIcons
+              name="settings"
+              size={25}
+              color={color}
+            />
           ),
         }}
       />
@@ -69,7 +112,11 @@ function TabNavigator() {
         component={EvidenceScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="videocam" size={26} color={color} />
+            <MaterialIcons
+              name="videocam"
+              size={25}
+              color={color}
+            />
           ),
         }}
       />
@@ -78,19 +125,39 @@ function TabNavigator() {
 }
 
 
-// 🔹 Main App
+// ==========================================
+// MAIN APP
+// ==========================================
+
 export default function App() {
 
   const cameraRef = useRef(null);
+
 
   useEffect(() => {
 
     const init = async () => {
 
-      const permissions = await requestAllPermissions();
-      console.log("Permissions:", permissions);
+      try {
 
-      setCameraRef(cameraRef);
+        const permissions =
+          await requestAllPermissions();
+
+        console.log(
+          "Permissions:",
+          permissions
+        );
+
+        setCameraRef(cameraRef);
+
+      } catch (error) {
+
+        console.log(
+          "Initialization error:",
+          error
+        );
+
+      }
 
     };
 
@@ -98,9 +165,9 @@ export default function App() {
 
   }, []);
 
+
   return (
-    <>
-      {/* Hidden Camera */}
+    <SafeAreaProvider>
       <CameraView
         ref={cameraRef}
         style={{
@@ -108,23 +175,29 @@ export default function App() {
           height: 1,
           position: "absolute",
           top: -100,
-          left: -100
+          left: -100,
         }}
       />
 
       <NavigationContainer>
-
         <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen
+            name="Calculator"
+            component={CalculatorScreen}
+          />
 
-          {/* Tabs */}
-          <Stack.Screen name="MainTabs" component={TabNavigator} />
+          <Stack.Screen
+            name="MainTabs"
+            component={TabNavigator}
+          />
 
-          {/* NEW SCREEN */}
-          <Stack.Screen name="SetPasscode" component={SetPasscodeScreen} />
-
+          <Stack.Screen
+            name="SetPasscode"
+            component={SetPasscodeScreen}
+          />
         </Stack.Navigator>
-
       </NavigationContainer>
-    </>
+    </SafeAreaProvider>
   );
 }
+

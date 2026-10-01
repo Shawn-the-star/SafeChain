@@ -5,17 +5,17 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
-  TextInput
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 
-import { colors } from "../constants/theme";
 import { getContacts, addContact, deleteContact } from "../services/contactService";
 
 export default function ContactsScreen() {
-
   const [contacts, setContacts] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -32,10 +32,12 @@ export default function ContactsScreen() {
   }, []);
 
   const handleAddContact = async () => {
+    if (!name.trim() || !phone.trim()) return;
 
-    if (!name || !phone) return;
-
-    await addContact({ name, phone });
+    await addContact({
+      name: name.trim(),
+      phone: phone.trim(),
+    });
 
     setName("");
     setPhone("");
@@ -49,202 +51,549 @@ export default function ContactsScreen() {
     loadContacts();
   };
 
+  const closeModal = () => {
+    setName("");
+    setPhone("");
+    setModalVisible(false);
+  };
+
+  const renderContact = ({ item, index }) => (
+    <View style={styles.contactCard}>
+      <View style={styles.contactLeft}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {item.name?.charAt(0)?.toUpperCase() || "?"}
+          </Text>
+        </View>
+
+        <View style={styles.contactInfo}>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.name}
+          </Text>
+
+          <Text style={styles.phone}>
+            {item.phone}
+          </Text>
+
+          <View style={styles.emergencyBadge}>
+            <View style={styles.badgeDot} />
+            <Text style={styles.badgeText}>
+              Emergency contact
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={styles.removeButton}
+        onPress={() => removeContact(index)}
+      >
+        <Text style={styles.removeText}>Remove</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Emergency Contacts</Text>
 
-    <SafeAreaView style={styles.container}>
+          <Text style={styles.subtitle}>
+            People who can be contacted during an emergency
+          </Text>
+        </View>
 
-      <Text style={styles.title}>Emergency Contacts</Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {contacts.length}
+          </Text>
+        </View>
+      </View>
 
+      {/* Contact List */}
       <FlatList
         data={contacts}
         keyExtractor={(item, index) => index.toString()}
+        renderItem={renderContact}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        renderItem={({ item, index }) => (
-
-          <View style={styles.contactCard}>
-
-            <View>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.phone}>{item.phone}</Text>
+        contentContainerStyle={[
+          styles.listContent,
+          contacts.length === 0 && styles.emptyListContent,
+        ]}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <Text style={styles.emptyIconText}>+</Text>
             </View>
 
-            <TouchableOpacity onPress={() => removeContact(index)}>
-              <Text style={styles.delete}>Remove</Text>
+            <Text style={styles.emptyTitle}>
+              No emergency contacts
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Add someone you trust so they can be
+              contacted when you activate SOS.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.emptyAddButton}
+              onPress={() => setModalVisible(true)}
+            >
+              <Text style={styles.emptyAddText}>
+                Add Emergency Contact
+              </Text>
             </TouchableOpacity>
-
           </View>
-
-        )}
+        }
       />
 
       {/* Floating Add Button */}
-
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={() => setModalVisible(true)}
-      >
-        <Text style={styles.plus}>+</Text>
-      </TouchableOpacity>
+      {contacts.length > 0 && (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.floatingButton}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.plus}>+</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Add Contact Modal */}
-
-      <Modal visible={modalVisible} animationType="slide" transparent>
-
-        <View style={styles.modalContainer}>
-
-          <View style={styles.modalContent}>
-
-            <Text style={styles.modalTitle}>Add Emergency Contact</Text>
-
-            <TextInput
-              placeholder="Contact Name"
-              placeholderTextColor="#777"
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-            />
-
-            <TextInput
-              placeholder="Phone Number"
-              placeholderTextColor="#777"
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
-
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalOverlay}
+            onPress={closeModal}
+          >
             <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleAddContact}
+              activeOpacity={1}
+              style={styles.modalContent}
             >
-              <Text style={styles.saveText}>Save Contact</Text>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>
+                    Add Emergency Contact
+                  </Text>
+
+                  <Text style={styles.modalSubtitle}>
+                    This person may receive your SOS alert
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeModal}
+                >
+                  <Text style={styles.closeText}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Name */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  CONTACT NAME
+                </Text>
+
+                <TextInput
+                  placeholder="e.g. Mom"
+                  placeholderTextColor="#666"
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              {/* Phone */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  PHONE NUMBER
+                </Text>
+
+                <TextInput
+                  placeholder="e.g. +91 98765 43210"
+                  placeholderTextColor="#666"
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              {/* Save */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[
+                  styles.saveButton,
+                  (!name.trim() || !phone.trim()) &&
+                    styles.saveButtonDisabled,
+                ]}
+                onPress={handleAddContact}
+                disabled={!name.trim() || !phone.trim()}
+              >
+                <Text style={styles.saveText}>
+                  Save Contact
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={closeModal}
+                style={styles.cancelButton}
+              >
+                <Text style={styles.cancel}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.cancel}>Cancel</Text>
-            </TouchableOpacity>
-
-          </View>
-
-        </View>
-
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 24
+    backgroundColor: "#0c0c0c",
+    paddingHorizontal: 20,
+  },
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 16,
+    paddingBottom: 22,
   },
 
   title: {
-    fontSize: 30,
-    color: colors.textPrimary,
-    fontWeight: "bold",
-    marginTop: 20,
-    marginBottom: 20
+    color: "#ffffff",
+    fontSize: 28,
+    fontWeight: "800",
+  },
+
+  subtitle: {
+    color: "#777",
+    fontSize: 11,
+    marginTop: 5,
+    maxWidth: 300,
+    lineHeight: 16,
+  },
+
+  countBadge: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 9,
+    borderRadius: 17,
+    backgroundColor: "#191919",
+    borderWidth: 1,
+    borderColor: "#292929",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  countText: {
+    color: "#aaa",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  listContent: {
+    paddingBottom: 110,
+  },
+
+  emptyListContent: {
+    flexGrow: 1,
   },
 
   contactCard: {
-    backgroundColor: colors.card,
-    padding: 18,
-    borderRadius: 16,
+    backgroundColor: "#151515",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#242424",
+    padding: 15,
     marginBottom: 12,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center"
+  },
+
+  contactLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
+
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#241717",
+    borderWidth: 1,
+    borderColor: "#482321",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13,
+  },
+
+  avatarText: {
+    color: "#ff6259",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+
+  contactInfo: {
+    flex: 1,
+    minWidth: 0,
   },
 
   name: {
-    color: colors.textPrimary,
-    fontSize: 17,
-    fontWeight: "600"
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   phone: {
-    color: colors.textSecondary,
-    marginTop: 3
+    color: "#888",
+    fontSize: 12,
+    marginTop: 3,
   },
 
-  delete: {
-    color: "#ff3b30",
-    fontWeight: "bold"
+  emergencyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 7,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "#151c17",
+  },
+
+  badgeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#4ade80",
+    marginRight: 5,
+  },
+
+  badgeText: {
+    color: "#72c98e",
+    fontSize: 8,
+    fontWeight: "700",
+  },
+
+  removeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    marginLeft: 8,
+  },
+
+  removeText: {
+    color: "#ff5148",
+    fontSize: 11,
+    fontWeight: "700",
   },
 
   floatingButton: {
     position: "absolute",
-    bottom: 30,
-    right: 30,
-    width: 65,
-    height: 65,
-    borderRadius: 35,
+    right: 22,
+    bottom: 25,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: "#ff3b30",
-    justifyContent: "center",
     alignItems: "center",
-    elevation: 10
+    justifyContent: "center",
+    elevation: 8,
   },
 
   plus: {
-    color: "white",
-    fontSize: 34,
-    fontWeight: "bold"
+    color: "#ffffff",
+    fontSize: 30,
+    fontWeight: "400",
+    marginTop: -2,
+  },
+
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 25,
+    paddingBottom: 40,
+  },
+
+  emptyIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#191919",
+    borderWidth: 1,
+    borderColor: "#292929",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+
+  emptyIconText: {
+    color: "#777",
+    fontSize: 30,
+    fontWeight: "300",
+  },
+
+  emptyTitle: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  emptyText: {
+    color: "#666",
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: "center",
+    marginTop: 7,
+    maxWidth: 280,
+  },
+
+  emptyAddButton: {
+    backgroundColor: "#ff3b30",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 18,
+  },
+
+  emptyAddText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   modalContainer: {
     flex: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 24
+    justifyContent: "flex-end",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
   },
 
   modalContent: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    padding: 24
+    backgroundColor: "#161616",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: "#292929",
+    padding: 22,
+    paddingBottom: 30,
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 24,
   },
 
   modalTitle: {
-    fontSize: 22,
-    color: colors.textPrimary,
-    fontWeight: "bold",
-    marginBottom: 20
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+
+  modalSubtitle: {
+    color: "#777",
+    fontSize: 11,
+    marginTop: 4,
+  },
+
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#222",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  closeText: {
+    color: "#aaa",
+    fontSize: 23,
+    lineHeight: 25,
+    fontWeight: "300",
+  },
+
+  inputGroup: {
+    marginBottom: 16,
+  },
+
+  inputLabel: {
+    color: "#777",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 7,
   },
 
   input: {
-    backgroundColor: "#121212",
+    height: 50,
+    backgroundColor: "#101010",
+    borderWidth: 1,
+    borderColor: "#292929",
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    color: "white"
+    paddingHorizontal: 14,
+    color: "#ffffff",
+    fontSize: 14,
   },
 
   saveButton: {
+    height: 50,
     backgroundColor: "#ff3b30",
-    padding: 15,
     borderRadius: 12,
     alignItems: "center",
-    marginTop: 10
+    justifyContent: "center",
+    marginTop: 4,
+  },
+
+  saveButtonDisabled: {
+    opacity: 0.4,
   },
 
   saveText: {
-    color: "white",
-    fontWeight: "bold"
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  cancelButton: {
+    alignItems: "center",
+    paddingVertical: 12,
   },
 
   cancel: {
-    textAlign: "center",
-    marginTop: 12,
-    color: "#aaa"
-  }
-
+    color: "#888",
+    fontSize: 12,
+    fontWeight: "600",
+  },
 });
